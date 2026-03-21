@@ -1,9 +1,18 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
 
 const router = express.Router();
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
+
+const configWriteLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many configuration requests, please try again later.' },
+});
 
 function readConfig() {
   if (!fs.existsSync(CONFIG_PATH)) return {};
@@ -27,7 +36,7 @@ router.get('/', (req, res) => {
 });
 
 // POST /api/config - save config
-router.post('/', (req, res) => {
+router.post('/', configWriteLimit, (req, res) => {
   const { fhirServerUrl, tokenEndpoint, clientId, privateKey, scope } = req.body;
 
   if (!fhirServerUrl || !tokenEndpoint || !clientId) {
