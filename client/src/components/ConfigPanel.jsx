@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 function ConfigPanel({ apiBase, config, onConfigSaved }) {
@@ -13,7 +13,7 @@ function ConfigPanel({ apiBase, config, onConfigSaved }) {
   const [message, setMessage] = useState(null);
 
   // Pre-fill form from loaded config (excluding privateKey)
-  useState(() => {
+  useEffect(() => {
     if (config) {
       setForm(f => ({
         ...f,

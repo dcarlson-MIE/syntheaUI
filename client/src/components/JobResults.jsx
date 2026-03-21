@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 
 const POLL_INTERVAL = 2000;
@@ -17,7 +17,7 @@ function JobResults({ apiBase, jobId, onClose }) {
   const logRef = useRef(null);
   const timerRef = useRef(null);
 
-  const fetchJob = async () => {
+  const fetchJob = useCallback(async () => {
     try {
       const { data } = await axios.get(`${apiBase}/api/status/${jobId}`);
       setJob(data);
@@ -31,13 +31,13 @@ function JobResults({ apiBase, jobId, onClose }) {
       setError(err.message);
       clearInterval(timerRef.current);
     }
-  };
+  }, [apiBase, jobId]);
 
   useEffect(() => {
     fetchJob();
     timerRef.current = setInterval(fetchJob, POLL_INTERVAL);
     return () => clearInterval(timerRef.current);
-  }, [jobId]);
+  }, [fetchJob]);
 
   if (error) {
     return (

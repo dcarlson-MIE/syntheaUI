@@ -15,6 +15,8 @@ const SYNTHEA_OUTPUT = path.join(SYNTHEA_DIR, 'output', 'fhir');
 // In-memory job store
 const jobs = {};
 
+const JWT_EXPIRATION_SECONDS = 300;
+
 function findSyntheaJar() {
   const buildLibs = path.join(SYNTHEA_DIR, 'build', 'libs');
   if (!fs.existsSync(buildLibs)) return null;
@@ -125,7 +127,7 @@ async function getAccessToken(config) {
     sub: config.clientId,
     aud: config.tokenEndpoint,
     jti: uuidv4(),
-    exp: now + 300,
+    exp: now + JWT_EXPIRATION_SECONDS,
     iat: now,
   };
 
@@ -169,7 +171,7 @@ async function postBundleToFhir(bundle, accessToken, fhirServerUrl, jobId) {
       results.details.push({ type: 'Bundle(transaction)', status: 'success', count: bundle.entry.length });
       return results;
     } catch (err) {
-      jobs[Object.keys(jobs).at(-1)]?.logs.push(`Transaction bundle post failed, falling back to individual resources: ${err.message}`);
+      jobs[jobId]?.logs.push(`Transaction bundle post failed, falling back to individual resources: ${err.message}`);
     }
   }
 
@@ -246,9 +248,6 @@ async function processJob(jobId, params) {
   let patientsGenerated = 0;
 
   for (const file of fhirFiles) {
-    if (file === 'hospitalInformation1.json' || file === 'practitionerInformation1.json') {
-      // These are organization/practitioner bundles - post them too
-    }
     jobs[jobId].logs.push(`Posting resources from ${file}...`);
     const bundle = JSON.parse(fs.readFileSync(path.join(SYNTHEA_OUTPUT, file), 'utf8'));
 
