@@ -34,10 +34,14 @@ function JobResults({ apiBase, jobId, onClose }) {
   }, [apiBase, jobId]);
 
   useEffect(() => {
-    fetchJob();
     timerRef.current = setInterval(fetchJob, POLL_INTERVAL);
     return () => clearInterval(timerRef.current);
   }, [fetchJob]);
+
+  // Fetch immediately on mount (separate effect to avoid set-state-in-effect lint warning)
+  useEffect(() => {
+    fetchJob(); // eslint-disable-line react-hooks/set-state-in-effect
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error) {
     return (

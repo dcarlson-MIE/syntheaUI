@@ -135,7 +135,8 @@ async function getAccessToken(config) {
   let token;
   try {
     token = jwt.sign(payload, config.privateKey, { algorithm: 'RS384' });
-  } catch {
+  } catch (rs384Err) {
+    console.warn('RS384 signing failed, falling back to RS256:', rs384Err.message);
     token = jwt.sign(payload, config.privateKey, { algorithm: 'RS256' });
   }
 
