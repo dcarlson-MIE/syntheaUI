@@ -1,0 +1,17 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Build output
+client/dist/
+
+# Runtime data (contains secrets)
+server/data/config.json
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
