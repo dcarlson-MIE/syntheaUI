@@ -7,7 +7,7 @@ services:
       - "3001:3001"
     volumes:
       - ./synthea:/app/synthea
-      - ./server/config.json:/app/config.json
+      - ./server/data:/app/data
     environment:
       - PORT=3001
       - CLIENT_ORIGIN=http://localhost:5173

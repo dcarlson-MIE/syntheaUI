@@ -4,7 +4,9 @@ npm-debug.log*
 
 # Build output
 client/dist/
-server/config.json
+
+# Runtime data (contains secrets)
+server/data/config.json
 
 # Environment
 .env
