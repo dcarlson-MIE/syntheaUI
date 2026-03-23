@@ -137,5 +137,4 @@ router.post('/', configWriteLimit, async (req, res) => {
   });
 });
 
-module.exports = router;
-module.exports.readConfig = readConfig;
+module.exports = { router, readConfig };
