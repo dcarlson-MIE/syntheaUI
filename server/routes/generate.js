@@ -17,14 +17,51 @@ const jobs = {};
 
 const JWT_EXPIRATION_SECONDS = 300;
 
+function ensureSyntheaInstalled() {
+  if (!fs.existsSync(SYNTHEA_DIR) || !fs.statSync(SYNTHEA_DIR).isDirectory()) {
+    throw new Error('Synthea directory not found. Run: git submodule update --init --recursive');
+  }
+
+  const gradlew = path.join(SYNTHEA_DIR, 'gradlew');
+  if (!fs.existsSync(gradlew)) {
+    throw new Error('Synthea is not initialized (missing gradlew). Run: git submodule update --init --recursive');
+  }
+
+  try {
+    fs.accessSync(gradlew, fs.constants.X_OK);
+  } catch {
+    throw new Error('Synthea gradlew is not executable. Run: chmod +x synthea/gradlew');
+  }
+}
+
 function findSyntheaJar() {
   const buildLibs = path.join(SYNTHEA_DIR, 'build', 'libs');
   if (!fs.existsSync(buildLibs)) return null;
-  const files = fs.readdirSync(buildLibs).filter(f => f.endsWith('.jar') && !f.includes('sources') && !f.includes('javadoc'));
+  
+  const files = fs.readdirSync(buildLibs).filter(f => 
+    f.endsWith('.jar') && 
+    !f.includes('sources') && 
+    !f.includes('javadoc')
+  );
+  
   if (files.length === 0) return null;
-  // prefer the "all" or largest jar (the fat jar)
-  const fatJar = files.find(f => f.includes('all') || f.includes('uberjar'));
-  return path.join(buildLibs, fatJar || files[files.length - 1]);
+  
+  // Prefer fat JARs with dependencies bundled
+  // Try common patterns: with-dependencies, all, uberjar, fat, assembly, then largest
+  const fatJarPatterns = ['with-dependencies', 'all', 'uberjar', 'fat', 'assembly'];
+  for (const pattern of fatJarPatterns) {
+    const match = files.find(f => f.includes(pattern));
+    if (match) return path.join(buildLibs, match);
+  }
+  
+  // Fall back to largest remaining JAR
+  const largest = files.reduce((prev, curr) => {
+    const prevStats = fs.statSync(path.join(buildLibs, prev));
+    const currStats = fs.statSync(path.join(buildLibs, curr));
+    return currStats.size > prevStats.size ? curr : prev;
+  });
+  
+  return path.join(buildLibs, largest);
 }
 
 async function buildSynthea(jobId) {
@@ -212,6 +249,8 @@ async function processJob(jobId, params) {
   if (!config.fhirServerUrl || !config.tokenEndpoint || !config.clientId || !config.privateKey) {
     throw new Error('FHIR server configuration is incomplete. Please configure the FHIR server first.');
   }
+
+  ensureSyntheaInstalled();
 
   // Ensure synthea JAR exists
   let jarPath = findSyntheaJar();

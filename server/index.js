@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 
-const { router: configRoutes } = require('./routes/config');
+const { router: configRoutes, getAppJwks } = require('./routes/config');
 const generateRoutes = require('./routes/generate');
 
 const app = express();
@@ -13,6 +13,15 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
+
+app.get('/.well-known/jwks.json', (req, res) => {
+  try {
+    res.json(getAppJwks());
+  } catch (err) {
+    console.error('Failed to build JWKS:', err.message);
+    res.status(500).json({ error: 'Failed to build JWKS' });
+  }
+});
 
 app.use('/api/config', configRoutes);
 app.use('/api', generateRoutes);

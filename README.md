@@ -64,8 +64,13 @@ Open http://localhost:5173, fill in:
 - **FHIR Server URL** — base URL of your FHIR R4 server
 - **Token Endpoint** — SMART on FHIR token URL
 - **Client ID** — your registered client ID
-- **Private Key** — RSA private key in PEM format (RS384 or RS256)
 - **Scope** — default: `system/*.write`
+
+The app generates and manages its own signing key pair and publishes a discoverable JWKS endpoint at:
+
+`http://localhost:3001/.well-known/jwks.json`
+
+Register that JWKS URL with your authorization server for `private_key_jwt` client authentication.
 
 ### 5. Generate patients
 
