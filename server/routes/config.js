@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const dns = require('dns').promises;
 const net = require('net');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 
 const router = express.Router();
@@ -82,13 +83,87 @@ function readConfig() {
   }
 }
 
+function writeConfig(config) {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), { encoding: 'utf8', mode: 0o600 });
+}
+
+function deriveKidFromJwk(jwk) {
+  return crypto.createHash('sha256').update(`${jwk.n}.${jwk.e}`).digest('base64url');
+}
+
+function getPublicJwk(privateKeyPem, keyId) {
+  const privateKey = crypto.createPrivateKey(privateKeyPem);
+  const publicKey = crypto.createPublicKey(privateKey);
+  const jwk = publicKey.export({ format: 'jwk' });
+
+  return {
+    kty: jwk.kty,
+    n: jwk.n,
+    e: jwk.e,
+    kid: keyId || deriveKidFromJwk(jwk),
+    use: 'sig',
+    alg: 'RS384',
+  };
+}
+
+function ensureSigningKey(config) {
+  const next = { ...config };
+  let changed = false;
+
+  if (!next.privateKey || !next.privateKey.trim()) {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    });
+    next.privateKey = privateKey.trim();
+    changed = true;
+  }
+
+  if (!next.keyId || !next.keyId.trim()) {
+    next.keyId = getPublicJwk(next.privateKey, '').kid;
+    changed = true;
+  }
+
+  return { config: next, changed };
+}
+
+function getBaseUrl(req) {
+  const forwardedProto = req.headers['x-forwarded-proto'];
+  const proto = forwardedProto ? String(forwardedProto).split(',')[0].trim() : req.protocol;
+  const forwardedHost = req.headers['x-forwarded-host'];
+  const host = forwardedHost ? String(forwardedHost).split(',')[0].trim() : req.get('host');
+  return `${proto}://${host}`;
+}
+
+function getAppJwks() {
+  const loaded = readConfig();
+  const { config, changed } = ensureSigningKey(loaded);
+  if (changed) {
+    writeConfig(config);
+  }
+
+  return {
+    keys: [getPublicJwk(config.privateKey, config.keyId)],
+  };
+}
+
 // GET /api/config - return config with private key masked
 router.get('/', (req, res) => {
-  const config = readConfig();
+  const loaded = readConfig();
+  const { config, changed } = ensureSigningKey(loaded);
+  if (changed) {
+    writeConfig(config);
+  }
+
   res.json({
     fhirServerUrl: config.fhirServerUrl || '',
     tokenEndpoint: config.tokenEndpoint || '',
     clientId: config.clientId || '',
+    jwksUrl: `${getBaseUrl(req)}/.well-known/jwks.json`,
     scope: config.scope || 'system/*.write',
     hasPrivateKey: !!(config.privateKey && config.privateKey.trim()),
   });
@@ -112,29 +187,33 @@ router.post('/', configWriteLimit, async (req, res) => {
 
   const existing = readConfig();
 
-  // Ensure data directory exists before writing
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-
-  const updated = {
+  let updated = {
     fhirServerUrl: fhirServerUrl.trim(),
     tokenEndpoint: tokenEndpoint.trim(),
     clientId: clientId.trim(),
     scope: (scope || 'system/*.write').trim(),
+    keyId: existing.keyId || '',
     // keep existing private key if none provided in this request
     privateKey: privateKey && privateKey.trim() ? privateKey.trim() : (existing.privateKey || ''),
   };
 
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(updated, null, 2), { encoding: 'utf8', mode: 0o600 });
+  if (privateKey && privateKey.trim()) {
+    updated.keyId = '';
+  }
+
+  const ensured = ensureSigningKey(updated);
+  updated = ensured.config;
+
+  writeConfig(updated);
   res.json({
     success: true,
     fhirServerUrl: updated.fhirServerUrl,
     tokenEndpoint: updated.tokenEndpoint,
     clientId: updated.clientId,
+    jwksUrl: `${getBaseUrl(req)}/.well-known/jwks.json`,
     scope: updated.scope,
     hasPrivateKey: !!updated.privateKey,
   });
 });
 
-module.exports = { router, readConfig };
+module.exports = { router, readConfig, getAppJwks };
