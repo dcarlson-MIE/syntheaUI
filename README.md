@@ -128,38 +128,39 @@ npm run dev
 ## Server / Production Setup (e.g. port 3000)
 
 If you are deploying on a server where the frontend is served on a specific port
-(e.g. port 3000), use the provided startup script — it handles everything and
-runs both services in the background without blocking your terminal.
+(e.g. port 3000), use the startup script to run backend + frontend in the background.
 
-### Automated (recommended)
+### 2b + 3b Automated (recommended)
 
 ```bash
 chmod +x start-server.sh
 
-# Defaults: frontend on port 3000, API on port 3001
-./start-server.sh --host your-server.example.com
+# Hostname only
+./start-server.sh --host syntheaui.os.mieweb.org --scheme https --app-port 3000 --api-port 3001
 
-# Override ports if needed
-./start-server.sh --host your-server.example.com --app-port 3000 --api-port 3001
+# Full URL also works
+./start-server.sh --host https://syntheaui.os.mieweb.org --app-port 3000 --api-port 3001
 ```
 
-The script will:
-1. Install backend dependencies and start the API in the background
-2. Install frontend dependencies, build with the correct API URL baked in
-3. Serve the built frontend in the background
+Important:
+- Do not include a path in `--host`.
+- Do not append `:3001` to `--host`; use `--api-port 3001` instead.
 
-**Management commands:**
+Check runtime deployment details:
+
 ```bash
-./start-server.sh --status   # check if services are running
-./start-server.sh --stop     # stop both services
-./start-server.sh --help     # show all options
+./start-server.sh --check --host https://syntheaui.os.mieweb.org --app-port 3000 --api-port 3001
 ```
 
-**Logs** are written to `logs/server.log` and `logs/client.log`.
+This verifies:
+- `/api/health/details` (effective public URL and proxy headers)
+- `/.well-known/jwks.json` (public JWKS reachability)
 
 ---
 
-### Manual (steps 2b & 3b)
+### Manual fallback
+
+If you prefer to run commands yourself, configure via environment variables:
 
 ### 2b. Configure environment
 
@@ -199,7 +200,7 @@ Open the app in your browser, fill in:
 
 The app generates and manages its own signing key pair and publishes a discoverable JWKS endpoint at:
 
-`http://<your-host>:3001/.well-known/jwks.json`
+`https://<your-host>/.well-known/jwks.json`
 
 Register that JWKS URL with your authorization server for `private_key_jwt` client authentication.
 
@@ -238,8 +239,8 @@ PUBLIC_API_URL=https://your-server.example.com
 Then:
 ```bash
 docker-compose up --build
-# Frontend: http://your-server.example.com:3000
-# API:      http://your-server.example.com:3001
+# Frontend: https://your-server.example.com
+# API:      https://your-server.example.com (proxied to backend)
 ```
 
 ## API Reference
@@ -247,6 +248,7 @@ docker-compose up --build
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/health` | Health check |
+| `GET` | `/api/health/details` | Deployment diagnostics (proxy/public URL/JWKS) |
 | `GET` | `/api/config` | Get config (private key masked) |
 | `POST` | `/api/config` | Save FHIR server config |
 | `POST` | `/api/generate` | Start a generation job |

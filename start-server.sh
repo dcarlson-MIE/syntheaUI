@@ -1,186 +1,170 @@
 #!/usr/bin/env bash
-# start-server.sh — Production/server deployment startup script
-# Starts the backend API and serves the built frontend in the background.
-#
-# Usage:
-#   ./start-server.sh [options]
-#
-# Options:
-#   --host     HOST      Public hostname or IP (default: localhost)
-#   --api-port PORT      Backend API port      (default: 3001)
-#   --app-port PORT      Frontend port         (default: 3000)
-#   --stop               Stop running instances and exit
-#   --status             Show running instances and exit
-#   -h, --help           Show this help message
-
 set -euo pipefail
+
+# Starts backend + built frontend in background.
+# Also supports status/stop/check helpers.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_DIR="$SCRIPT_DIR/.pids"
+LOG_DIR="$SCRIPT_DIR/logs"
 SERVER_PID_FILE="$PID_DIR/server.pid"
 CLIENT_PID_FILE="$PID_DIR/client.pid"
-SERVER_LOG="$SCRIPT_DIR/logs/server.log"
-CLIENT_LOG="$SCRIPT_DIR/logs/client.log"
+SERVER_LOG="$LOG_DIR/server.log"
+CLIENT_LOG="$LOG_DIR/client.log"
 
-# ── Defaults ──────────────────────────────────────────────────────────────────
-HOST="localhost"
+HOST_INPUT="localhost"
+SCHEME="http"
 API_PORT="3001"
 APP_PORT="3000"
+ACTION="start"
 
-# ── Argument parsing ──────────────────────────────────────────────────────────
+usage() {
+  cat <<'EOF'
+Usage:
+  ./start-server.sh [options]
+
+Options:
+  --host <host-or-url>  Hostname or full URL (default: localhost)
+                        Examples:
+                        --host syntheaui.os.mieweb.org
+                        --host https://syntheaui.os.mieweb.org
+  --api-port <port>     Backend API port (default: 3001)
+  --app-port <port>     Frontend app port (default: 3000)
+  --scheme <http|https> Override scheme if --host is hostname only
+  --status              Show service status
+  --stop                Stop services
+  --check               Check runtime deployment diagnostics
+  -h, --help            Show help
+EOF
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --host)      HOST="$2";     shift 2 ;;
-    --api-port)  API_PORT="$2"; shift 2 ;;
-    --app-port)  APP_PORT="$2"; shift 2 ;;
-    --stop)      ACTION="stop";  shift ;;
-    --status)    ACTION="status"; shift ;;
-    -h|--help)   ACTION="help";  shift ;;
-    *) echo "Unknown option: $1"; exit 1 ;;
+    --host) HOST_INPUT="$2"; shift 2 ;;
+    --api-port) API_PORT="$2"; shift 2 ;;
+    --app-port) APP_PORT="$2"; shift 2 ;;
+    --scheme) SCHEME="$2"; shift 2 ;;
+    --status) ACTION="status"; shift ;;
+    --stop) ACTION="stop"; shift ;;
+    --check) ACTION="check"; shift ;;
+    -h|--help) ACTION="help"; shift ;;
+    *) echo "Unknown option: $1"; usage; exit 1 ;;
   esac
 done
-ACTION="${ACTION:-start}"
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+normalize_host() {
+  local raw="$1"
+  local host="$raw"
+
+  if [[ "$raw" == *"://"* ]]; then
+    SCHEME="${raw%%://*}"
+    host="${raw#*://}"
+  fi
+
+  host="${host%%/*}"
+  host="${host%%:*}"
+
+  if [[ -z "$host" ]]; then
+    echo "Invalid --host value: $raw" >&2
+    exit 1
+  fi
+
+  echo "$host"
+}
+
+HOST="$(normalize_host "$HOST_INPUT")"
+PUBLIC_APP_URL="$SCHEME://$HOST"
+PUBLIC_API_URL="$SCHEME://$HOST"
+
 is_running() {
   local pid_file="$1"
-  [[ -f "$pid_file" ]] && ps -p "$(cat "$pid_file")" > /dev/null 2>&1
+  [[ -f "$pid_file" ]] && ps -p "$(cat "$pid_file")" >/dev/null 2>&1
 }
 
-stop_process() {
+stop_one() {
   local name="$1" pid_file="$2"
   if is_running "$pid_file"; then
-    local pid; pid=$(cat "$pid_file")
-    echo "  Stopping $name (PID $pid)..."
-    kill "$pid" && rm -f "$pid_file"
-  else
-    echo "  $name is not running."
-    rm -f "$pid_file"
+    local pid
+    pid="$(cat "$pid_file")"
+    kill "$pid" || true
   fi
+  rm -f "$pid_file"
+  echo "Stopped $name"
 }
 
-# ── Actions ───────────────────────────────────────────────────────────────────
-case "$ACTION" in
+if [[ "$ACTION" == "help" ]]; then
+  usage
+  exit 0
+fi
 
-  help)
-    head -n 14 "${BASH_SOURCE[0]}" | tail -n 13 | sed 's/^# \{0,1\}//'
-    exit 0
-    ;;
+mkdir -p "$PID_DIR" "$LOG_DIR"
 
-  stop)
-    echo "Stopping services..."
-    stop_process "Backend API" "$SERVER_PID_FILE"
-    stop_process "Frontend"    "$CLIENT_PID_FILE"
-    echo "Done."
-    exit 0
-    ;;
+if [[ "$ACTION" == "status" ]]; then
+  if is_running "$SERVER_PID_FILE"; then
+    echo "Backend: running (PID $(cat "$SERVER_PID_FILE"))"
+  else
+    echo "Backend: not running"
+  fi
+  if is_running "$CLIENT_PID_FILE"; then
+    echo "Frontend: running (PID $(cat "$CLIENT_PID_FILE"))"
+  else
+    echo "Frontend: not running"
+  fi
+  exit 0
+fi
 
-  status)
-    echo "Service status:"
-    if is_running "$SERVER_PID_FILE"; then
-      echo "  ✓ Backend API  — running (PID $(cat "$SERVER_PID_FILE")) on http://$HOST:$API_PORT"
-    else
-      echo "  ✗ Backend API  — not running"
-    fi
-    if is_running "$CLIENT_PID_FILE"; then
-      echo "  ✓ Frontend     — running (PID $(cat "$CLIENT_PID_FILE")) on http://$HOST:$APP_PORT"
-    else
-      echo "  ✗ Frontend     — not running"
-    fi
-    exit 0
-    ;;
+if [[ "$ACTION" == "stop" ]]; then
+  stop_one "backend" "$SERVER_PID_FILE"
+  stop_one "frontend" "$CLIENT_PID_FILE"
+  exit 0
+fi
 
-  start)
-    ;;
+if [[ "$ACTION" == "check" ]]; then
+  if command -v curl >/dev/null 2>&1; then
+    echo "Checking health: $PUBLIC_API_URL:$API_PORT/api/health/details"
+    curl -fsS "$PUBLIC_API_URL:$API_PORT/api/health/details" | cat
+    echo
+    echo "Checking JWKS: $PUBLIC_APP_URL/.well-known/jwks.json"
+    curl -fsS "$PUBLIC_APP_URL/.well-known/jwks.json" | cat
+    echo
+  else
+    echo "curl not found; install curl to use --check"
+    exit 1
+  fi
+  exit 0
+fi
 
-  *)
-    echo "Unknown action: $ACTION"; exit 1 ;;
-esac
-
-# ── Start ─────────────────────────────────────────────────────────────────────
-echo "Starting Synthetic Patient Generator..."
-echo "  Host:     $HOST"
-echo "  API port: $API_PORT"
-echo "  App port: $APP_PORT"
-echo ""
-
-mkdir -p "$PID_DIR" "$(dirname "$SERVER_LOG")" "$(dirname "$CLIENT_LOG")"
-
-# Guard against already-running instances
 if is_running "$SERVER_PID_FILE" || is_running "$CLIENT_PID_FILE"; then
-  echo "One or more services are already running. Use --stop to stop them first."
+  echo "Services already running. Use --stop first."
   exit 1
 fi
 
-# ── 1. Install backend dependencies ──────────────────────────────────────────
-echo "[1/4] Installing backend dependencies..."
-(cd "$SCRIPT_DIR/server" && npm install --silent)
-
-# ── 2. Start backend in background ───────────────────────────────────────────
-echo "[2/4] Starting backend API on port $API_PORT..."
+echo "Starting backend on :$API_PORT"
 (
   cd "$SCRIPT_DIR/server"
   PORT="$API_PORT" \
-  CLIENT_ORIGIN="http://$HOST:$APP_PORT" \
-  PUBLIC_API_URL="http://$HOST:$API_PORT" \
-  node index.js >> "$SERVER_LOG" 2>&1 &
+  CLIENT_ORIGIN="$PUBLIC_APP_URL" \
+  PUBLIC_API_URL="$PUBLIC_API_URL" \
+  nohup node index.js >>"$SERVER_LOG" 2>&1 &
   echo $! > "$SERVER_PID_FILE"
 )
 
-# Wait until the API responds (up to 15 s)
-echo "       Waiting for backend to be ready..."
-for i in $(seq 1 15); do
-  if node -e "fetch('http://localhost:$API_PORT/api/health').then(()=>process.exit(0)).catch(()=>process.exit(1))" 2>/dev/null; then
-    echo "       ✓ Backend ready."
-    break
-  fi
-  sleep 1
-  if [[ $i -eq 15 ]]; then
-    echo "       ✗ Backend did not start in time. Check logs: $SERVER_LOG"
-    exit 1
-  fi
-done
-
-# ── 3. Install frontend dependencies ─────────────────────────────────────────
-echo "[3/4] Installing and building frontend..."
-(cd "$SCRIPT_DIR/client" && npm install --silent)
-
-# Build with the correct API URL baked in
+echo "Installing and building frontend"
 (
   cd "$SCRIPT_DIR/client"
-  VITE_API_URL="http://$HOST:$API_PORT" npm run build -- --logLevel warn
+  npm install --silent
+  VITE_API_URL="$PUBLIC_API_URL" npm run build -- --logLevel warn
 )
 
-# ── 4. Serve built frontend in background ────────────────────────────────────
-echo "[4/4] Serving frontend on port $APP_PORT..."
-if ! command -v npx &>/dev/null; then
-  echo "  npx not found — ensure Node.js/npm is installed."
-  exit 1
-fi
-
+echo "Starting frontend on :$APP_PORT"
 (
   cd "$SCRIPT_DIR/client"
-  npx --yes serve -s dist -l "$APP_PORT" >> "$CLIENT_LOG" 2>&1 &
+  nohup npx --yes serve -s dist -l "$APP_PORT" >>"$CLIENT_LOG" 2>&1 &
   echo $! > "$CLIENT_PID_FILE"
 )
 
-sleep 1   # brief pause so serve can bind the port
-
-if ! is_running "$CLIENT_PID_FILE"; then
-  echo "  ✗ Frontend failed to start. Check logs: $CLIENT_LOG"
-  exit 1
-fi
-
-# ── Summary ───────────────────────────────────────────────────────────────────
-echo ""
-echo "Both services are running in the background."
-echo ""
-echo "  Frontend:  http://$HOST:$APP_PORT"
-echo "  Backend:   http://$HOST:$API_PORT"
-echo "  JWKS URL:  http://$HOST:$API_PORT/.well-known/jwks.json"
-echo ""
-echo "  Logs:      $SERVER_LOG"
-echo "             $CLIENT_LOG"
-echo ""
-echo "  To stop:   $0 --stop"
-echo "  To check:  $0 --status"
+echo "Started"
+echo "  Frontend:  $PUBLIC_APP_URL"
+echo "  Backend:   $PUBLIC_API_URL:$API_PORT"
+echo "  JWKS:      $PUBLIC_APP_URL/.well-known/jwks.json"
+echo "  Logs:      $SERVER_LOG and $CLIENT_LOG"

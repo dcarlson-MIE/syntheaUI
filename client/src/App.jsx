@@ -4,6 +4,7 @@ import GenerateForm from './components/GenerateForm';
 import JobResults from './components/JobResults';
 import './App.css';
 
+// In production, prefer same-origin API calls unless VITE_API_URL is explicitly set.
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 function App() {
