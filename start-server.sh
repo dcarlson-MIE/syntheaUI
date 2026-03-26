@@ -56,7 +56,7 @@ normalize_host() {
   local raw="$1"
   local host="$raw"
 
-  if [[ "$raw" == *"://"* ]]; then
+  if [[ $raw == *://* ]]; then
     SCHEME="${raw%%://*}"
     host="${raw#*://}"
   fi
@@ -73,8 +73,23 @@ normalize_host() {
 }
 
 HOST="$(normalize_host "$HOST_INPUT")"
-PUBLIC_APP_URL="$SCHEME://$HOST"
-PUBLIC_API_URL="$SCHEME://$HOST"
+
+build_public_url() {
+  local scheme="$1"
+  local host="$2"
+  local port="$3"
+
+  if [[ "$scheme" == "https" && "$port" == "443" ]]; then
+    echo "$scheme://$host"
+  elif [[ "$scheme" == "http" && "$port" == "80" ]]; then
+    echo "$scheme://$host"
+  else
+    echo "$scheme://$host:$port"
+  fi
+}
+
+PUBLIC_APP_URL="$(build_public_url "$SCHEME" "$HOST" "$APP_PORT")"
+PUBLIC_API_URL="$(build_public_url "$SCHEME" "$HOST" "$API_PORT")"
 
 is_running() {
   local pid_file="$1"
@@ -121,8 +136,8 @@ fi
 
 if [[ "$ACTION" == "check" ]]; then
   if command -v curl >/dev/null 2>&1; then
-    echo "Checking health: $PUBLIC_API_URL:$API_PORT/api/health/details"
-    curl -fsS "$PUBLIC_API_URL:$API_PORT/api/health/details" | cat
+    echo "Checking local API health: http://127.0.0.1:$API_PORT/api/health/details"
+    curl -fsS "http://127.0.0.1:$API_PORT/api/health/details" | cat
     echo
     echo "Checking JWKS: $PUBLIC_APP_URL/.well-known/jwks.json"
     curl -fsS "$PUBLIC_APP_URL/.well-known/jwks.json" | cat
@@ -165,6 +180,6 @@ echo "Starting frontend on :$APP_PORT"
 
 echo "Started"
 echo "  Frontend:  $PUBLIC_APP_URL"
-echo "  Backend:   $PUBLIC_API_URL:$API_PORT"
+echo "  Backend:   $PUBLIC_API_URL"
 echo "  JWKS:      $PUBLIC_APP_URL/.well-known/jwks.json"
 echo "  Logs:      $SERVER_LOG and $CLIENT_LOG"
