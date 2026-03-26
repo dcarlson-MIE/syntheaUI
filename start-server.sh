@@ -122,6 +122,7 @@ echo "[2/4] Starting backend API on port $API_PORT..."
   cd "$SCRIPT_DIR/server"
   PORT="$API_PORT" \
   CLIENT_ORIGIN="http://$HOST:$APP_PORT" \
+  PUBLIC_API_URL="http://$HOST:$API_PORT" \
   node index.js >> "$SERVER_LOG" 2>&1 &
   echo $! > "$SERVER_PID_FILE"
 )
