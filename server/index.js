@@ -8,11 +8,7 @@ const generateRoutes = require('./routes/generate');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-<<<<<<< Updated upstream
-// Trust reverse-proxy headers (X-Forwarded-Proto, X-Forwarded-Host)
-=======
 // Trust reverse proxy headers (X-Forwarded-Proto, X-Forwarded-Host)
->>>>>>> Stashed changes
 app.set('trust proxy', true);
 
 app.use(cors({
