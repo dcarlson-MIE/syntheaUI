@@ -132,10 +132,17 @@ function ensureSigningKey(config) {
 }
 
 function getBaseUrl(req) {
+<<<<<<< Updated upstream
   // Operator-pinned public URL takes precedence over everything
   if (process.env.PUBLIC_API_URL && process.env.PUBLIC_API_URL.trim()) {
     return process.env.PUBLIC_API_URL.trim().replace(/\/$/, '');
   }
+=======
+  if (process.env.PUBLIC_API_URL && process.env.PUBLIC_API_URL.trim()) {
+    return process.env.PUBLIC_API_URL.trim().replace(/\/$/, '');
+  }
+
+>>>>>>> Stashed changes
   const forwardedProto = req.headers['x-forwarded-proto'];
   const proto = forwardedProto ? String(forwardedProto).split(',')[0].trim() : req.protocol;
   const forwardedHost = req.headers['x-forwarded-host'];
