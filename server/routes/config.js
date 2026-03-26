@@ -132,6 +132,9 @@ function ensureSigningKey(config) {
 }
 
 function getBaseUrl(req) {
+  if (process.env.PUBLIC_API_URL && process.env.PUBLIC_API_URL.trim()) {
+    return process.env.PUBLIC_API_URL.trim().replace(/\/$/, '');
+  }
   const forwardedProto = req.headers['x-forwarded-proto'];
   const proto = forwardedProto ? String(forwardedProto).split(',')[0].trim() : req.protocol;
   const forwardedHost = req.headers['x-forwarded-host'];
