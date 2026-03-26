@@ -40,16 +40,20 @@ cd syntheaUI
 git submodule update --init --recursive
 ```
 
-### 2. Start the backend
+---
+
+## Local Development Setup
+
+### 2a. Start the backend
 
 ```bash
 cd server
 npm install
 npm start
-# Server runs on http://localhost:3001
+# API runs on http://localhost:3001
 ```
 
-### 3. Start the frontend
+### 3a. Start the frontend
 
 ```bash
 cd client
@@ -58,9 +62,44 @@ npm run dev
 # App runs on http://localhost:5173
 ```
 
+---
+
+## Server / Production Setup (e.g. port 3000)
+
+If you are deploying on a server where the frontend is served on a specific port
+(e.g. port 3000), configure via environment variables before starting:
+
+### 2b. Configure environment
+
+```bash
+# Tell the API which origin is allowed (the URL users hit in their browser)
+export CLIENT_ORIGIN=http://your-server.example.com:3000
+
+# Start the backend (port defaults to 3001, override if needed)
+cd server
+npm install
+npm start
+```
+
+### 3b. Build and serve the frontend
+
+The frontend needs to know the backend API URL **at build time**:
+
+```bash
+cd client
+npm install
+VITE_API_URL=http://your-server.example.com:3001 npm run build
+# Serve the dist/ folder on port 3000 with any static file server, e.g.:
+npx serve -s dist -l 3000
+```
+
+Or use the provided Docker Compose approach (see below) which handles this automatically.
+
+---
+
 ### 4. Configure FHIR server
 
-Open http://localhost:5173, fill in:
+Open the app in your browser, fill in:
 - **FHIR Server URL** — base URL of your FHIR R4 server
 - **Token Endpoint** — SMART on FHIR token URL
 - **Client ID** — your registered client ID
@@ -68,7 +107,7 @@ Open http://localhost:5173, fill in:
 
 The app generates and manages its own signing key pair and publishes a discoverable JWKS endpoint at:
 
-`http://localhost:3001/.well-known/jwks.json`
+`http://<your-host>:3001/.well-known/jwks.json`
 
 Register that JWKS URL with your authorization server for `private_key_jwt` client authentication.
 
@@ -78,14 +117,37 @@ Fill in the generation form and click **Generate & Post to FHIR Server**.
 
 On first run, Synthea will be built automatically (`./gradlew build -x test`), which takes several minutes. Subsequent runs reuse the built JAR.
 
+---
+
 ## Docker Compose
 
+Copy and edit the root `.env` file before starting:
+
 ```bash
-docker-compose up --build
+cp .env.example .env
+# Edit .env to set your ports and URLs
 ```
 
-- Frontend: http://localhost:5173
-- API: http://localhost:3001
+**Local defaults** (no changes needed):
+```bash
+docker-compose up --build
+# Frontend: http://localhost:5173
+# API:      http://localhost:3001
+```
+
+**Server deployment on port 3000** — set in `.env`:
+```
+CLIENT_PORT=3000
+CLIENT_ORIGIN=http://your-server.example.com:3000
+VITE_API_URL=http://your-server.example.com:3001
+```
+
+Then:
+```bash
+docker-compose up --build
+# Frontend: http://your-server.example.com:3000
+# API:      http://your-server.example.com:3001
+```
 
 ## API Reference
 
