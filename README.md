@@ -28,9 +28,70 @@ A full-stack web application for generating synthetic patient data with [Synthea
 
 ### Prerequisites
 
-- Node.js 18+
-- Java 11+ (for running Synthea)
-- npm
+#### Node.js 18+ and npm
+
+**macOS (Homebrew):**
+```bash
+brew install node
+```
+
+**Ubuntu/Debian:**
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+```
+
+**Windows:** Download from https://nodejs.org/
+
+Verify:
+```bash
+node --version   # should be v18 or higher
+npm --version
+```
+
+---
+
+#### Java 11+ (required to build and run Synthea)
+
+**macOS (Homebrew):**
+```bash
+brew install openjdk
+sudo ln -sfn /opt/homebrew/opt/openjdk/libexec/openjdk.jdk \
+  /Library/Java/JavaVirtualMachines/openjdk.jdk
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install -y openjdk-21-jdk
+```
+
+**Windows:** Download from https://adoptium.net/
+
+Verify:
+```bash
+java -version   # should be 11 or higher
+```
+
+---
+
+#### Git
+
+**macOS (Homebrew):**
+```bash
+brew install git
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install -y git
+```
+
+Verify:
+```bash
+git --version
+```
+
+---
 
 ### 1. Clone and initialize submodule
 
@@ -67,7 +128,38 @@ npm run dev
 ## Server / Production Setup (e.g. port 3000)
 
 If you are deploying on a server where the frontend is served on a specific port
-(e.g. port 3000), configure via environment variables before starting:
+(e.g. port 3000), use the provided startup script — it handles everything and
+runs both services in the background without blocking your terminal.
+
+### Automated (recommended)
+
+```bash
+chmod +x start-server.sh
+
+# Defaults: frontend on port 3000, API on port 3001
+./start-server.sh --host your-server.example.com
+
+# Override ports if needed
+./start-server.sh --host your-server.example.com --app-port 3000 --api-port 3001
+```
+
+The script will:
+1. Install backend dependencies and start the API in the background
+2. Install frontend dependencies, build with the correct API URL baked in
+3. Serve the built frontend in the background
+
+**Management commands:**
+```bash
+./start-server.sh --status   # check if services are running
+./start-server.sh --stop     # stop both services
+./start-server.sh --help     # show all options
+```
+
+**Logs** are written to `logs/server.log` and `logs/client.log`.
+
+---
+
+### Manual (steps 2b & 3b)
 
 ### 2b. Configure environment
 
