@@ -4,7 +4,7 @@ import GenerateForm from './components/GenerateForm';
 import JobResults from './components/JobResults';
 import './App.css';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 function App() {
   const [config, setConfig] = useState(null);

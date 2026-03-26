@@ -230,8 +230,9 @@ docker-compose up --build
 **Server deployment on port 3000** — set in `.env`:
 ```
 CLIENT_PORT=3000
-CLIENT_ORIGIN=http://your-server.example.com:3000
-VITE_API_URL=http://your-server.example.com:3001
+CLIENT_ORIGIN=https://your-server.example.com
+VITE_API_URL=https://your-server.example.com
+PUBLIC_API_URL=https://your-server.example.com
 ```
 
 Then:
